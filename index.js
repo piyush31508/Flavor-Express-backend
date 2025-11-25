@@ -1,5 +1,5 @@
+import 'dotenv/config';
 import express from 'express';
-import dotenv from 'dotenv';
 import connect from './database/db.js';
 import userRouter from './routes/userRoutes.js';
 import productRouter from './routes/productRoutes.js';
@@ -13,7 +13,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
-dotenv.config();
+
 
 //routes
 app.use('/user', userRouter);
