@@ -1,17 +1,12 @@
-import { createTransport } from "nodemailer";
+import { Resend } from "resend";
 
-const transport = createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === "true", 
-  auth: {
-    user: process.env.Gmail,
-    pass: process.env.Password,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendMail = async (email, subject, otp) => {
-  if (process.env.NODE_ENV === "development" && process.env.DISABLE_MAIL === "true") {
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.DISABLE_MAIL === "true"
+  ) {
     console.log(`[MAIL DEV] Would send mail to ${email} with OTP ${otp}`);
     return;
   }
@@ -56,22 +51,29 @@ const sendMail = async (email, subject, otp) => {
 <body>
   <div class="container">
     <h1>OTP Verification</h1>
-    <p>Hello ${email} your (One-Time Password) for your account verification is.</p>
+    <p>Hello ${email}, your One-Time Password for account verification is:</p>
     <p class="otp">${otp}</p> 
   </div>
 </body>
 </html>`;
 
   try {
-    const info = await transport.sendMail({
-      from: process.env.Gmail,
+    const { data, error } = await resend.emails.send({
+      from: process.env.RESEND_FROM, 
       to: email,
       subject,
       html,
     });
-    console.log("Mail sent:", info.messageId);
+
+    if (error) {
+      console.error("Error sending mail:", error);
+      throw error;
+    }
+
+    console.log("Mail sent:", data?.id);
   } catch (err) {
     console.error("Error sending mail:", err);
+    throw err;
   }
 };
 
