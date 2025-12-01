@@ -24,6 +24,7 @@
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.7",
     "razorpay": "^2.9.5",
+    "resend": "^6.5.2",
     "uniqid": "^5.4.0",
     "uuid": "^11.0.3",
     "uuidv4": "^6.2.13"
