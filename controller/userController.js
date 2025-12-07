@@ -2,71 +2,98 @@ import { User } from '../model/user.js';
 import jwt from 'jsonwebtoken';
 import sendMail from '../middleware/sendMail.js';
 
+const JWT_SECRET = process.env.SECRET;
+
+const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+
 export const loginUser = async (req, res) => {
-    try {
-        const { email } = req.body;
+  try {
+    const { email } = req.body;
 
-        let user = await User.findOne({ email });
-
-        if (!user) {
-            user = await User.create({ email });
-        }
-        const otp = Math.floor(Math.random() * 1000000);
-        const verifyToken = jwt.sign({ user, otp }, process.env.SECRET, {
-            expiresIn: '10m',
-        });
-
-        await sendMail(email, "OTP Req", otp);
-        res.status(200).json({ message: "Verification email sent", verifyToken });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
     }
-}
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({ email });
+    }
+
+    const otp = generateOtp();
+
+    const verifyToken = jwt.sign(
+      { userId: user._id, otp },
+      JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    await sendMail(email, "Your OTP for FlavorExpress", otp);
+
+    res.status(200).json({
+      message: "Verification email sent",
+      verifyToken,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
 
 
 export const verifyUser = async (req, res) => {
-    try {
-        const { verifyToken, otp } = req.body;
+  try {
+    const { verifyToken, otp } = req.body;
 
-        const verify = jwt.verify(verifyToken, process.env.SECRET);
-
-        if (!verify) {
-            return res.status(400).json({ message: "OTP EXPIRED" });
-        }
-
-        if (verify.otp !== parseInt(otp)) {
-            return res.status(400).json({ message: "Invalid OTP" });
-        }
-
-        const token = jwt.sign({
-            _id: verify.user._id
-        },
-            process.env.SECRET,
-            {
-                expiresIn: '5d',
-            }
-        )
-
-        res.json({
-            message: 'Logged in successfully',
-            token,
-            user: verify.user
-        })
-        
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
+    if (!verifyToken || !otp) {
+      return res.status(400).json({ message: "verifyToken and otp are required" });
     }
-}
 
-export const userProfile = async (req,res) => {
+    let decoded;
     try {
-        const user = await User.findById(req.user._id);
-
-        res.json(user);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
+      decoded = jwt.verify(verifyToken, JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(400).json({ message: "OTP expired. Please request a new one." });
+      }
+      return res.status(400).json({ message: "Invalid OTP token" });
     }
-}
+
+    if (decoded.otp !== otp.toString()) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const token = jwt.sign(
+      { _id: user._id },
+      JWT_SECRET,
+      { expiresIn: '5d' }
+    );
+
+    res.json({
+      message: 'Logged in successfully',
+      token,
+      user,
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+export const userProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).lean();
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};

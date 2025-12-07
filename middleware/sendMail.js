@@ -1,79 +1,46 @@
-import { Resend } from "resend";
+import axios from "axios";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const SENDER_EMAIL = process.env.SENDER_EMAIL || "piyushwork2003@gmail.com";
 
-const sendMail = async (email, subject, otp) => {
-  if (
-    process.env.NODE_ENV === "development" &&
-    process.env.DISABLE_MAIL === "true"
-  ) {
-    console.log(`[MAIL DEV] Would send mail to ${email} with OTP ${otp}`);
-    return;
-  }
+if (!BREVO_API_KEY) {
+  console.warn("Warning: BREVO_API_KEY is not set. Email sending will fail.");
+}
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OTP Verification</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    .container {
-      background-color: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      text-align: center;
-    }
-    h1 {
-      color: red;
-    }
-    p {
-      margin-bottom: 20px;
-      color: #666;
-    }
-    .otp {
-      font-size: 36px;
-      color: #7b68ee;
-      margin-bottom: 30px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>OTP Verification</h1>
-    <p>Hello ${email}, your One-Time Password for account verification is:</p>
-    <p class="otp">${otp}</p> 
-  </div>
-</body>
-</html>`;
+const sendMail = async (email, subject, otp, htmlContent) => {
+  const defaultHtml = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
+      <h1 style="color: red;">OTP Verification</h1>
+      <p>Hello ${email}, your One-Time Password for verification is:</p>
+      <p style="font-size: 32px; font-weight: bold; color: #7b68ee;">${otp}</p>
+      <p>This OTP is valid for 10 minutes.</p>
+    </div>
+  `;
+
+  const html = htmlContent || defaultHtml;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: process.env.RESEND_FROM, 
-      to: email,
-      subject,
-      html,
-    });
-
-    if (error) {
-      console.error("Error sending mail:", error);
-      throw error;
-    }
-
-    console.log("Mail sent:", data?.id);
+    const resp = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: { email: SENDER_EMAIL },
+        to: [{ email }],
+        subject,
+        htmlContent: html,
+      },
+      {
+        headers: {
+          "api-key": BREVO_API_KEY,
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        timeout: 15000,
+      }
+    );
+    return resp.data;
   } catch (err) {
-    console.error("Error sending mail:", err);
-    throw err;
+    console.error("Brevo Email Error:", err.response?.data || err.message);
+    throw new Error("Failed to send email");
   }
 };
 

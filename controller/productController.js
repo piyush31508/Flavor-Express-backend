@@ -87,5 +87,43 @@ export const deleteProduct = async (req, res) => {
     }
 }
 
+
+export const searchProducts = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = 12;
+
+    if (!q || q.trim().length === 0) {
+      return res.status(400).json({ message: "Search query (q) is required" });
+    }
+
+    const regex = new RegExp(q, 'i');
+
+    const filter = {
+      $or: [
+        { title: regex },
+        { description: regex },
+        { category: regex },
+      ],
+    };
+
+    const total = await Product.countDocuments(filter);
+    const products = await Product.find(filter)
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json({
+      products,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 //addProductReview, getPaginatedProducts/lazyLoadingProduct, searchProducts, filterProducts will be adding these
 //later currently a basic structure will be sufficent 
